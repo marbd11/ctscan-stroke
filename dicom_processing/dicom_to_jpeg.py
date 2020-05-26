@@ -1,18 +1,10 @@
 import pydicom
-#import gdcm
 import numpy as np
 import os
-import mudicom
 from PIL import Image
-import scipy.misc
 import imageio
-#import matplotlib.pyplot as plt
-#from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from glob import glob
-import scipy.ndimage
-from skimage import morphology
 import pickle
-from skimage import img_as_ubyte
 import cv2
 
 def load_scan(path):
@@ -73,7 +65,6 @@ def resample_5mm(imges, width):
 # Get Patient ID to save data from the Path
 def get_patient_id(path):
     b = path.split('\\')
-    print(b)
     e = b[1].split(' ')
     print(e)
     return e[0]
@@ -109,11 +100,8 @@ if __name__=='__main__':
 
     n_patients = len(patient_list)
 
-    print(n_patients)
-
     for x in range(n_patients):
         print('*********************************')
-        print(x)
         print(patient_list[x])
 
         patient_id = get_patient_id(patient_list[x])
@@ -126,9 +114,6 @@ if __name__=='__main__':
         # Get pixel data
         imgs = get_pixels_hu(patient)
 
-        # Save all images
-        # np.save(output_path + "\\%s_full_images.npy" % (patient_id), imgs)
-
         print("Width: " + str(width))
         print("Before Resampling: " + str(imgs.shape))
 
@@ -137,7 +122,6 @@ if __name__=='__main__':
 
         # Save Resampled
         print("After Resampling: " + str(new_imges.shape))
-        # np.save(output_path + "%s_sampled_images.npy" % (patient_id), new_imges)
 
         # Get three windows and save JPGs (resampled)
         # Brain window
@@ -163,14 +147,14 @@ if __name__=='__main__':
         # RGB Image
         rgb_window = np.zeros((new_imges.shape[0],512, 512, 3), 'uint8')
         rgb_window[..., 0] = brain_window
-        rgb_window[..., 2] = subdural_window
         rgb_window[..., 1] = bone_window
+        rgb_window[..., 2] = subdural_window
 
         # Now save these all to a new folder
         save_images(subdural_window, output_path, patient_id, 'subdural/')
-        #save_images(bone_window, output_path, patient_id, 'bone/')
-        #save_images(brain_window, output_path, patient_id, 'brain/')
-        #save_images(imgs, output_path, patient_id, 'all/')
+        save_images(bone_window, output_path, patient_id, 'bone/')
+        save_images(brain_window, output_path, patient_id, 'brain/')
+        save_images(imgs, output_path, patient_id, 'all/')
         save_images(radiologist_window, output_path, patient_id, 'approx_five_mm/')
         save_images(rgb_window, output_path, patient_id, 'rgb_channels/')
 
@@ -182,27 +166,3 @@ if __name__=='__main__':
         del bone_window
         del radiologist_window
         del rgb_window
-
-    #dcm_path = "F:/Research2/USELESS/CQ500-CT-0/Unknown Study/CT Plain/CT000020.dcm"
-    #dcm_path = "F:/Research2/raw_data/QureAI_data/CQ500-CT-2/Unknown Study/CT 5mm"
-    #slices = [pydicom.read_file(dcm_path + '/' + s) for s in os.listdir(dcm_path)]
-    #slices.sort(key = lambda x: int(x.InstanceNumber))
-    #image = np.stack([s.pixel_array for s in scans])
-    #print(slices[14])
-    #image = pydicom.pixel_data_handlers.gdcm_handler.get_pixeldata(slices[1])
-    #image = image.reshape(512,512)
-    #print(image)
-    #img = Image.fromarray(image)
-    #print(img)
-    #img.show()
-    #ds = pydicom.read_file(dcm_path)
-    #ds.decompress()
-    #print(ds.decompress())
-    #print(ds.WindowCenter)
-    #print(ds.WindowWidth)
-    #print(slices[1].WindowCenter)
-    #image = ds.pixel_array
-    #img = Image.fromarray(image)
-    #img.show()
-    #img.save("test.jpg")
-    #imageio.imwrite("test.jpg", img)
