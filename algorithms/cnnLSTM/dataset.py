@@ -134,3 +134,34 @@ class oneChannelData():
         print(full_label_train_list.shape)
 
         return full_image_train_list, full_label_train_list, full_image_test_list, full_label_test_list
+
+    # Creating the data given a data_dir, model_list, and movement_list
+    def create_data_kfold(self, data_dir, label_dir):
+        # Create an empty matrix of 1xtimestep for the full list of images
+        full_image_train_list = np.empty((0, self.slices))
+        # Create an empty matrix of 1x3 for the labels
+        full_label_train_list = np.empty((0, 14))
+        # Get lsit of patient directories
+        patient_dirs = get_patient_dirs(data_dir)
+
+        num_not_train = math.floor(len(patient_dirs) * 0.05)
+
+        test_patients = random.sample(patient_dirs, num_not_train)
+
+        with open('test_patients', 'wb') as fp:
+            pickle.dump(test_patients, fp)
+
+        # For the subject and a model list generate a matrix of images and a matrix of labels
+        for i in range(0, len(patient_dirs)):
+
+            image_files, trash_flag = generate_slice_list(data_dir, patient_dirs[i], self.slices)
+            if trash_flag != 1:
+                image_labels = generate_labels(label_dir, patient_dirs[i])
+
+
+                full_image_train_list = np.vstack((full_image_train_list, image_files))
+                full_label_train_list = np.vstack((full_label_train_list, image_labels))
+
+        #print(full_image_train_list.shape)
+
+        return full_image_train_list, full_label_train_list
