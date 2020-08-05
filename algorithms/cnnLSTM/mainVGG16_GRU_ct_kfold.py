@@ -15,48 +15,47 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.layers import TimeDistributed as td
 from tensorflow.keras.callbacks import CSVLogger
 from tensorflow.core.protobuf import rewriter_config_pb2
-from tensorflow.keras.backend import set_session
 from tensorflow.keras.utils import multi_gpu_model
 from sequencer import CTSequencer
 from dataset import oneChannelData
 from sklearn.model_selection import KFold
 
+#export CUDA_VISIBLE_DEVICES=1
+
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3, 4, 5, 6"
-num_gpus = 7
+os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3, 4, 5, 6, 7"
+num_gpus = 8
 
 seed = 42
 np.random.seed(42)
 tf.set_random_seed(3901)
 
-
 # Inputs class
 class Args:
     def __init__(self):
-        self.data_dir = '/data/delroc72/QureAI_jpegs'
+        self.data_dir  = '/data/delroc72/QureAI_jpegs'
         self.label_dir = '/data/delroc72/reads_groundTruths.csv'
 
         now = strftime("%m%d%y_%H%M%S", gmtime())
-        self.outputPath = './VGG16LstmModels/' + now + '/'
+        self.outputPath = './VGG16GRUModels_kfold/' + now + '/'
 
         if not os.path.exists(self.outputPath):
             os.makedirs(self.outputPath)
 
         self.epochs = 50
-        self.batch_size = 8
+        self.batch_size = 16
+        self.max_angle = 90
         self.num_slices = 38
         self.num_classes = 14
         self.channels = 3
         self.width = 224
         self.height = 224
 
-
-if __name__ == '__main__':
+if __name__=='__main__':
     args = Args()
 
     ct_scan_gen = oneChannelData(args.num_slices)
 
-    #kfold = StratifiedKFold(n_splits=10, shuffle=True, random_state=seed)
     kfold = KFold(10, True, seed)
 
     it = 0
@@ -77,36 +76,34 @@ if __name__ == '__main__':
         for layer in cnnModel.layers:
             layer.trainable = True
 
-        input = layers.Input(batch_shape=(args.batch_size, args.num_slices, args.width, args.height, args.channels))
+        input = layers.Input(batch_shape=(args.batch_size, args.num_slices, args.width,args.height,args.channels))
         tdOut = td(cnnModel)(input)
         flOut = td(layers.Flatten())(tdOut)
-        lstmOut = layers.LSTM(50, activation='tanh')(flOut)
+        lstmOut = layers.GRU(3, activation='tanh', recurrent_activation='sigmoid')(flOut)
         preds = layers.Dense(args.num_classes, activation='sigmoid')(lstmOut)
 
         model = tf.keras.models.Model(inputs=input, outputs=preds)
 
-        model.summary()
-
-        # model = load_model('./resnetModels/042619_055142/wholeModel.h5')
+        #model = load_model('./resnetModels/042619_055142/wholeModel.h5')
         params = {'batch_size': args.batch_size,
                   'time_steps': args.num_slices,
-                  'input_shape': (args.width, args.height, args.channels),
+                  'input_shape': (args.width,args.height,args.channels),
                   'num_classes': args.num_classes,
                   'shuffle': True}
 
         training_generator = CTSequencer(model_images[train], model_labels[train], **params)
-        testing_generator = CTSequencer(model_images[train], model_labels[train], **params)
+        testing_generator = CTSequencer(model_images[test], model_labels[test], **params)
 
         opt = tf.keras.optimizers.Adam(lr=0.0001)
 
-        model = multi_gpu_model(model, gpus=num_gpus)
+        model = multi_gpu_model(model,gpus=num_gpus)
         model.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
 
-        csv_logger = CSVLogger(args.outputPath + 'train_'+str(it)+'.log')
+        csv_logger = CSVLogger(args.outputPath+'train_'+str(it)+'.log')
 
         model.fit_generator(generator=training_generator,
                             steps_per_epoch=len(training_generator),
-                            epochs=args.epochs, shuffle=True, workers=2, use_multiprocessing=False,
+                            epochs=args.epochs, shuffle=True, workers=8,  use_multiprocessing=True,
                             validation_data=testing_generator, validation_steps=len(testing_generator),
                             callbacks=[csv_logger])
 
